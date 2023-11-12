@@ -354,12 +354,12 @@ void loop() {
 // Screens!
 
 // Draw a graph of whatever readings are passed in.
-void ui_draw_graph(float readings[NUM_SCREENS]) {
+void ui_draw_graph(float readings[HISTORY_SIZE]) {
   // Work out the min and max elements (start with obscene values that will be overwritten.)
   float min = 127;
   float max = -127;
 
-  for (int idx = 0; idx < NUM_SCREENS; idx++) {
+  for (int idx = 0; idx < HISTORY_SIZE; idx++) {
     if (!is_valid_reading(readings[idx])) { continue; }
     if (readings[idx] < min) { min = readings[idx]; }
     if (readings[idx] > max) { max = readings[idx]; }
@@ -372,50 +372,50 @@ void ui_draw_graph(float readings[NUM_SCREENS]) {
   }
 
   // Add some padding to the min and max values (to guarantee there's a range between them, so we don't divide by zero)
-  min = floorf(min);
-  max = ceilf(max);
+  min = floorf(min - 1);
+  max = ceilf(max + 1);
 
   // Draw the min and max on the display
   char minStr[6];
   char maxStr[6];
   sprintf(minStr, "%.0f", min);
-  sprintf(maxStr, "%.0f%", max);
+  sprintf(maxStr, "%.0f", max);
 
   u8g2.setFont(u8g2_font_tenthinnerguys_tf);
   u8g2.drawStr(0, 25, maxStr);
-  u8g2.drawStr(0, 64, maxStr);
+  u8g2.drawStr(0, 64, minStr);
 
   // Draw the line
   // We start at index 1 (the second element) and draw a line from it back to the previous element.
   // We only draw lines if both elements are valid.
-  for (int idx = 1; idx < NUM_SCREENS; idx++) {
+  for (int idx = 1; idx < HISTORY_SIZE; idx++) {
     // Skip if both aren't valid
     if (!is_valid_reading(readings[idx]) || !is_valid_reading(readings[idx - 1])) { continue; }
 
     // The graph is 48px high, so convert to that range.
     // 64 - (some number between 0 and 1) * 48
-    double start_y = double(64) - ((to_percentage_of_range(min, max, readings[idx]) * double(48)));  // element n
-    double end_y = double(64) - ((to_percentage_of_range(min, max, readings[idx]) * double(48)));    // element n-1 (which is a newer value)
+    int start_y = 64 - floor(to_range(min, max, readings[idx], 48));
+    int end_y = 64 - floor(to_range(min, max, readings[idx-1], 48));
 
     // Now draw a line between those two points.
     // Element idx-1 is the newer element.
     u8g2.drawLine(
-      (HISTORY_SIZE - idx) - 1,
-      start_y,
-      HISTORY_SIZE - idx,
-      end_y);
+     (HISTORY_SIZE - idx) - 1,
+     start_y,
+     HISTORY_SIZE - idx,
+     end_y);
   }
 }
 
 // Take the given val and range, return the percentage of the way through the range it is.
-// for example (2, 4, 3) = 0.5 because 3 is halfway between 2 and 4.
-double to_percentage_of_range(float min, float max, double val) {
+// for example (2, 4, 3, 10) = 5 because 3 is halfway between 2 and 4. and the range is 0..10.
+double to_range(float rangeMin, float rangeMax, float val, float scaleMax) {
   // Clamp the output - return 0 or 1 if outside of range.
-  if (val < min) { return 0; }
-  if (val > max) { return 1; }
+  if (val < rangeMin) { return 0; }
+  if (val > rangeMax) { return 1; }
 
   // Return val as a fraction of the range.
-  return (val - min) / (max - min);
+  return ((val - rangeMin) / (rangeMax - rangeMin)) * scaleMax;
 }
 
 // Draw the stats screen
